@@ -28,6 +28,7 @@ import docker
 import json
 import subprocess
 import requests
+import shlex
 
 from libdoug.api.flags import parse_cli
 from libdoug.dependency_walker import DependencyWalker
@@ -55,14 +56,14 @@ def _print_clicapture(cli, rawargs):
     print ' docker ' + ' '.join(rawargs)
     print 80*'#'
     print 'Command:\t', cli.verb
-    print 'Flags:\t', "\n        \t".join(["%s = %s"%a for a in cli.flags])
+    print 'Flags:  \t', "\n        \t".join(["%s = %s"%a for a in cli.flags])
     print 'Context:\t', cli.context
     print 'Workdir:\t', os.getcwd()
     print 80*'#'
 
 _original_check_call = subprocess.check_call
 def _check_call_stub(*popenargs, **kwargs):
-    args = list(*popenargs)
+    args = list(*popenargs) if isinstance(popenargs[0], list) else shlex.split(popenargs[0])
     if args[0].endswith("/docker"):
         _print_clicapture(parse_cli(args[1:]), args[1:])
     return _original_check_call(*popenargs, **kwargs)
@@ -325,7 +326,7 @@ removes all containers based on an image.
                 args = self.SPC_ARGS +  self._get_cmd()
 
             cmd = self.gen_cmd(args)
-            self.writeOut(cmd)
+            #self.writeOut(cmd)
         else:
             missing_RUN = False
             args = self._get_args("RUN")
@@ -334,7 +335,7 @@ removes all containers based on an image.
                 args = self.RUN_ARGS + self._get_cmd()
 
             cmd = self.gen_cmd(args)
-            self.writeOut(cmd)
+            #self.writeOut(cmd)
 
             if missing_RUN:
                 subprocess.check_call(cmd, env={
@@ -354,7 +355,7 @@ removes all containers based on an image.
         args = self._get_args("STOP")
         if args:
             cmd = self.gen_cmd(args)
-            self.writeOut(cmd)
+            #self.writeOut(cmd)
 
             subprocess.check_call(cmd, env={
                 "CONFDIR": "/etc/%s" % self.name,
@@ -409,7 +410,7 @@ removes all containers based on an image.
         args = self._get_args("UNINSTALL")
         if args:
             cmd = self.gen_cmd(args)
-            self.writeOut(cmd)
+            #self.writeOut(cmd)
             subprocess.check_call(cmd, env={
                 "CONFDIR": "/etc/%s" % self.name,
                 "LOGDIR": "/var/log/%s" % self.name,
@@ -460,7 +461,7 @@ removes all containers based on an image.
         args = self._get_args("INSTALL")
         if args:
             cmd = self.gen_cmd(args)
-            self.writeOut(cmd)
+            #self.writeOut(cmd)
 
             return(subprocess.check_call(cmd, env={
                 "CONFDIR": "/etc/%s" % self.name,

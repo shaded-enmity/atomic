@@ -29,6 +29,11 @@ import json
 import subprocess
 import requests
 
+from libdoug.api.flags import parse_cli
+from libdoug.dependency_walker import DependencyWalker
+from libdoug.graph import DependencyType
+from libdoug.utils import get_image
+
 PROGNAME="atomic"
 gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
 gettext.textdomain(PROGNAME)
@@ -43,6 +48,24 @@ except TypeError:
 except IOError:
     import builtins
     builtins.__dict__['_'] = str
+
+def _print_clicapture(cli, rawargs):
+    " :type cli: libdoug.api.flags.CliCapture "
+    print 26*'#' + ' DOCKER COMMAND DIAGNOSTICS ' + 26*'#'
+    print ' docker ' + ' '.join(rawargs)
+    print 80*'#'
+    print 'Command:\t', cli.verb
+    print 'Flags:\t', "\n        \t".join(["%s = %s"%a for a in cli.flags])
+    print 'Context:\t', cli.context
+    print 'Workdir:\t', os.getcwd()
+    print 80*'#'
+
+_original_check_call = subprocess.check_call
+def _check_call_stub(*popenargs, **kwargs):
+    args = list(*popenargs)
+    if args[0].endswith("/docker"):
+        _print_clicapture(parse_cli(args[1:]), args[1:])
+    return _original_check_call(*popenargs, **kwargs)
 
 class Atomic(object):
     INSTALL_ARGS = ["/usr/bin/docker", "run",
@@ -95,6 +118,7 @@ class Atomic(object):
         self.spc = False
         self.inspect = None
         self.force = False
+	self.debug = False
 
     def writeOut(self, output, lf="\n"):
         sys.stdout.flush()
@@ -112,6 +136,8 @@ class Atomic(object):
     def update(self):
         if self.force:
             self.force_delete_containers()
+	if self.image == 'all':
+	    pass # handle by libdoug
         return subprocess.check_call(["/usr/bin/docker", "pull", self.image])
 
     def pull(self):
@@ -161,6 +187,11 @@ class Atomic(object):
             self.force = args.force
         except:
             pass
+
+	if args.debug:
+	    # intercept the calls so that we can show diagnostics
+	    self.debug = True
+	    subprocess.check_call = _check_call_stub
 
         if not self.name and self.image is not None:
             self.name = self.image.split("/")[-1].split(":")[0]
@@ -413,6 +444,13 @@ removes all containers based on an image.
         for label in labels:
             self.writeOut("%-13s: %s" % (label, labels[label]))
 
+	if self.debug:
+	    self.writeOut("Image dependencies:")
+	    allimages = self.d.images(all=True)
+	    image = get_image(self.image, allimages)
+	    walker = DependencyWalker(image, DependencyType.IMAGE)
+	    walker.walk(allimages)
+
     def install(self):
         self.inspect = self._inspect_image()
         if not self.inspect:
@@ -462,6 +500,9 @@ class HelpByDefaultArgumentParser(argparse.ArgumentParser):
 if __name__ == '__main__':
     atomic=Atomic()
     parser = HelpByDefaultArgumentParser(description=atomic.help())
+    
+    parser.add_argument("-d", "--debug", action="store_true", help=_("display additional diagnostic information"))
+
     subparser = parser.add_subparsers(help=_("commands"))
 
     if os.path.exists("/usr/bin/rpm-ostree"):

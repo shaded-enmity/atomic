@@ -34,11 +34,6 @@ from libdoug.dependency_walker import DependencyWalker
 from libdoug.graph import DependencyType
 from libdoug.utils import get_image
 
-from libdoug.api.flags import parse_cli
-from libdoug.dependency_walker import DependencyWalker
-from libdoug.graph import DependencyType
-from libdoug.utils import get_image
-
 PROGNAME="atomic"
 gettext.bindtextdomain(PROGNAME, "/usr/share/locale")
 gettext.textdomain(PROGNAME)
